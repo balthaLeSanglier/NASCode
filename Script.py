@@ -34,33 +34,29 @@ def calculate_ips(network_intent):
     
     return network_intent
 
-def generate_pe_config(router_name, router_data, asn, peers, ces):
+def generate_pe_config(router_name, router_data, asn, peers, ces, network):
     """GÃ©nÃ¨re la configuration pour un routeur PE ou P"""
     config = "!\n"
-    if router_name != "PE1":
-        config += "! Last configuration change at 17:22:40 UTC Wed Apr 2 2025\n"
-    config += "!version 15.2\n" if router_name in ["P2", "P3"] else "version 15.2\n"
-    config += "service timestamps debug datetime msec\n"
-    config += "service timestamps log datetime msec\n!\n"
+    # if router_name != "PE1":
+    #     config += "! Last configuration change at 17:22:40 UTC Wed Apr 2 2025\n"
+    # config += "!version 15.2\n" if router_name in ["P2", "P3"] else "version 15.2\n"
+    # config += "service timestamps debug datetime msec\n"
+    # config += "service timestamps log datetime msec\n!\n"
     config += f"hostname {router_name}\n!\nboot-start-marker\nboot-end-marker\n!\n"
     config += "no aaa new-model\nno ip icmp rate-limit unreachable\nip cef\n!\n"
     
     # VRFs pour les PE
     if router_data["type"] == "PE":
-        if router_name == "PE1":
-            config += "ip vrf customer_1\n rd 1:1\n route-target export 1:1\n route-target import 1:1\n!\n"
-            config += "ip vrf customer_2\n rd 1:2\n route-target export 1:2\n route-target import 1:2\n!\n"
-        elif router_name == "PE2":
-            config += "ip vrf customer_1\n rd 2:1\n route-target export 1:1\n route-target import 1:1\n!\n"
-            config += "ip vrf customer_2\n rd 2:2\n route-target export 1:2\n route-target import 1:2\n!\n"
-    
-    config += "!\n!\n" if router_name == "PE1" else ""
-    config += "no ip domain lookup\nno ipv6 cef\n!\n"
-    config += "multilink bundle-name authenticated\n!\n"
-    config += "!\n!\n!\n!\n!\n!\n!\n!\n" if router_name == "PE1" else ""
-    config += "ip tcp synwait-time 5\n!\n"
-    if router_name == "PE1":
-        config += "!\n!\n!\n!\n!\n!\n!\n!\n!\n!\n!\n"
+        for customer in router_data["vrfs"]:
+            config+= "ip vrf "+customer+"\n rd 1:"+customer.split("_")[1] + "\n route-target export 1:"+customer.split("_")[1]+"\n route-target import 1:"+customer.split("_")[1]+"\n!\n"
+
+    # config += "!\n!\n" if router_name == "PE1" else ""
+    # config += "no ip domain lookup\nno ipv6 cef\n!\n"
+    # config += "multilink bundle-name authenticated\n!\n"
+    # config += "!\n!\n!\n!\n!\n!\n!\n!\n" if router_name == "PE1" else ""
+    # config += "ip tcp synwait-time 5\n!\n"
+    # if router_name == "PE1":
+    #     config += "!\n!\n!\n!\n!\n!\n!\n!\n!\n!\n!\n"
     
     # Interfaces
     loopback_ip = router_data['loopback']
@@ -79,10 +75,11 @@ def generate_pe_config(router_name, router_data, asn, peers, ces):
             if intf_config.get('mpls', False):
                 config += " mpls ip\n"
             config += " negotiation auto\n"
-            if (router_name == "P2" and intf_name in ["GigabitEthernet1/0", "GigabitEthernet2/0"]) or \
-               (router_name == "P3" and intf_name in ["GigabitEthernet2/0", "GigabitEthernet3/0"]) or \
-               (router_name == "PE2" and intf_name == "GigabitEthernet3/0"):
-                config += " no shutdown\n"
+            # if (router_name == "P2" and intf_name in ["GigabitEthernet1/0", "GigabitEthernet2/0"]) or \
+            #    (router_name == "P3" and intf_name in ["GigabitEthernet2/0", "GigabitEthernet3/0"]) or \
+            #    (router_name == "PE2" and intf_name == "GigabitEthernet3/0"):
+            config += " no shutdown\n"
+
         else:
             if intf_name.startswith("FastEthernet"):
                 config += " no ip address\n shutdown\n duplex full\n"
@@ -92,22 +89,35 @@ def generate_pe_config(router_name, router_data, asn, peers, ces):
     
     # OSPF
     config += "router ospf 1\n"
-    if router_name == "PE1":
-        config += " router-id 1.1.1.1\n"
-    elif router_name == "PE2":
-        config += " router-id 4.4.4.4\n"
-    else:
-        config += f" router-id {loopback_ip.split()[0]}\n"
-    config += f" network {loopback_ip.split()[0]} 0.0.0.0 area 0\n"
-    if router_name == "PE1":
-        config += " network 192.168.69.0 0.0.0.3 area 0\n"
-    elif router_name == "PE2":
-        config += " network 192.168.69.8 0.0.0.3 area 0\n"
-    elif router_name == "P2":
-        config += " network 192.168.69.0 0.0.0.3 area 0\n network 192.168.69.4 0.0.0.3 area 0\n"
-    elif router_name == "P3":
-        config += " network 192.168.69.4 0.0.0.3 area 0\n network 192.168.69.8 0.0.0.3 area 0\n"
-    config += "!\n"
+    if router_data["type"] in ["PE", "P"]:
+        config+=" router-id "+dicoCorrespondance[router_name]["id"].strip('i')+"."+dicoCorrespondance[router_name]["id"].strip('i')+"."+dicoCorrespondance[router_name]["id"].strip('i')+"."+dicoCorrespondance[router_name]["id"].strip('i')+"\n"
+        config += f" network {loopback_ip.split()[0]} 0.0.0.0 area 0\n"
+        for iface, data in router_data["interfaces"].items():
+            if "neighbor" in data:
+                subnet_name = f"{router_name}-{data['neighbor']}"
+                if subnet_name not in network["subnets"]:
+                    subnet_name = f"{data['neighbor']}-{router_name}"
+
+                subnet = network["subnets"][subnet_name]
+                config += " network "+subnet.split()[0] +" 0.0.0.3 area 0\n"
+            # network 192.168.69.0 0.0.0.3 area 0
+        # config += " network "192.168.69.0 0.0.0.3 area 0\n"
+    # if router_name == "PE1":
+    #     config += " router-id 1.1.1.1\n"
+    # elif router_name == "PE2":
+    #     config += " router-id 4.4.4.4\n"
+    # else:
+    #     config += f" router-id {loopback_ip.split()[0]}\n"
+    # config += f" network {loopback_ip.split()[0]} 0.0.0.0 area 0\n"
+    # if router_name == "PE1":
+    #     config += " network 192.168.69.0 0.0.0.3 area 0\n"
+    # elif router_name == "PE2":
+    #     config += " network 192.168.69.8 0.0.0.3 area 0\n"
+    # elif router_name == "P2":
+    #     config += " network 192.168.69.0 0.0.0.3 area 0\n network 192.168.69.4 0.0.0.3 area 0\n"
+    # elif router_name == "P3":
+    #     config += " network 192.168.69.4 0.0.0.3 area 0\n network 192.168.69.8 0.0.0.3 area 0\n"
+    # config += "!\n"
     
     # MPLS
     config += "mpls ldp router-id Loopback0 force\n!\n"
@@ -117,37 +127,40 @@ def generate_pe_config(router_name, router_data, asn, peers, ces):
     config += f" bgp router-id {loopback_ip.split()[0]}\n bgp log-neighbor-changes\n"
     config += " no bgp default ipv4-unicast\n"
     
-    if router_name == "PE1":
-        config += " neighbor 10.0.0.4 remote-as 2025\n neighbor 10.0.0.4 update-source Loopback0\n"
-    elif router_name == "PE2":
-        config += " neighbor 10.0.0.1 remote-as 2025\n neighbor 10.0.0.1 update-source Loopback0\n"
-    elif router_name == "P2":
-        config += (" neighbor 10.0.0.1 remote-as 2025\n neighbor 10.0.0.1 update-source Loopback0\n"
-                   " neighbor 10.0.0.3 remote-as 2025\n neighbor 10.0.0.3 update-source Loopback0\n"
-                   " neighbor 10.0.0.4 remote-as 2025\n neighbor 10.0.0.4 update-source Loopback0\n")
-    elif router_name == "P3":
-        config += (" neighbor 10.0.0.1 remote-as 2025\n neighbor 10.0.0.1 update-source Loopback0\n"
-                   " neighbor 10.0.0.2 remote-as 2025\n neighbor 10.0.0.2 update-source Loopback0\n"
-                   " neighbor 10.0.0.4 remote-as 2025\n neighbor 10.0.0.4 update-source Loopback0\n")
+    if router_data["type"] in ["PE"]:
+        for name, router in network["routers"].items():
+            if router["type"] == "PE" and name != router_name:
+                config+=" neighbor "+router["loopback"].split()[0] + " remote-as 2025\n neighbor "+router["loopback"].split()[0] + " update-source Loopback0\n"
     
     config += " !\n address-family ipv4\n"
-    if router_name != "PE1" and router_name != "PE2":
-        config += f"  network {loopback_ip.split()[0]} mask 255.255.255.255\n"
-        if router_name == "P2":
-            config += "  neighbor 10.0.0.1 activate\n  neighbor 10.0.0.3 activate\n  neighbor 10.0.0.4 activate\n"
-        elif router_name == "P3":
-            config += "  neighbor 10.0.0.1 activate\n  neighbor 10.0.0.2 activate\n  neighbor 10.0.0.4 activate\n"
-    config += " exit-address-family\n"
-    
-    if router_data["type"] == "PE":
-        if router_name == "PE1":
-            config += " !\n address-family vpnv4\n  neighbor 10.0.0.4 activate\n  neighbor 10.0.0.4 send-community both\n exit-address-family\n"
-            config += " !\n address-family ipv4 vrf customer_1\n  redistribute connected\n  neighbor 192.168.70.2 remote-as 101\n  neighbor 192.168.70.2 activate\n  neighbor 192.168.70.2 route-map TAG_FROM_CE1-1 in\n exit-address-family\n"
-            config += " !\n address-family ipv4 vrf customer_2\n  redistribute connected\n  neighbor 192.168.71.2 remote-as 102\n  neighbor 192.168.71.2 activate\n  neighbor 192.168.71.2 route-map TAG_FROM_CE2-1 in\n exit-address-family\n"
-        elif router_name == "PE2":
-            config += " !\n address-family vpnv4\n  neighbor 10.0.0.1 activate\n  neighbor 10.0.0.1 send-community both\n exit-address-family\n"
-            config += " !\n address-family ipv4 vrf customer_1\n  redistribute connected\n  neighbor 192.168.72.2 remote-as 103\n  neighbor 192.168.72.2 activate\n  neighbor 192.168.72.2 route-map TAG_FROM_CE1-2 in\n  neighbor 192.168.72.2 route-map FILTER_TO_CE1-2 out\n exit-address-family\n"
-            config += " !\n address-family ipv4 vrf customer_2\n  redistribute connected\n  neighbor 192.168.73.2 remote-as 104\n  neighbor 192.168.73.2 activate\n  neighbor 192.168.73.2 route-map TAG_FROM_CE2-2 in\n exit-address-family\n"
+    config += " exit-address-family\n"    
+    config += " !\n address-family vpnv4\n"
+    if router_data["type"] in ["PE"]:
+        for name, router in network["routers"].items():
+            if router["type"] == "PE" and name != router_name:
+                config+="  neighbor "+router["loopback"].split()[0] + " activate\n "+" neighbor "+router["loopback"].split()[0] + " send-community both\n"
+
+    if router_data["type"] in ["PE"]:
+        for customer in router_data["vrfs"]:
+            config += " !\n address-family vpnv4 "+customer
+            config+= "\n  neighbor 192.168.70.2 remote-as "+str(asn)
+            customerIp="" 
+    # if router_data["type"] in ["PE"]:
+    #     for customer in router_data["vrfs"]:
+            
+    #     for name, router in network["routers"].items():
+    #         if router["type"] == "PE" and name != router_name:
+    #             config+=" neighbor "+router["loopback"].split()[0] + " remote-as 2025\n neighbor "+router["loopback"].split()[0] + " update-source Loopback0\n"
+
+    # if router_data["type"] == "PE":
+    #     if router_name == "PE1":
+    #         config += " !\n address-family vpnv4\n  neighbor 10.0.0.4 activate\n  neighbor 10.0.0.4 send-community both\n exit-address-family\n"
+    #         config += " !\n address-family ipv4 vrf customer_1\n  redistribute connected\n  neighbor 192.168.70.2 remote-as 101\n  neighbor 192.168.70.2 activate\n  neighbor 192.168.70.2 route-map TAG_FROM_CE1-1 in\n exit-address-family\n"
+    #         config += " !\n address-family ipv4 vrf customer_2\n  redistribute connected\n  neighbor 192.168.71.2 remote-as 102\n  neighbor 192.168.71.2 activate\n  neighbor 192.168.71.2 route-map TAG_FROM_CE2-1 in\n exit-address-family\n"
+    #     elif router_name == "PE2":
+    #         config += " !\n address-family vpnv4\n  neighbor 10.0.0.1 activate\n  neighbor 10.0.0.1 send-community both\n exit-address-family\n"
+    #         config += " !\n address-family ipv4 vrf customer_1\n  redistribute connected\n  neighbor 192.168.72.2 remote-as 103\n  neighbor 192.168.72.2 activate\n  neighbor 192.168.72.2 route-map TAG_FROM_CE1-2 in\n  neighbor 192.168.72.2 route-map FILTER_TO_CE1-2 out\n exit-address-family\n"
+    #         config += " !\n address-family ipv4 vrf customer_2\n  redistribute connected\n  neighbor 192.168.73.2 remote-as 104\n  neighbor 192.168.73.2 activate\n  neighbor 192.168.73.2 route-map TAG_FROM_CE2-2 in\n exit-address-family\n"
     
     config += "!\nip forward-protocol nd\n!\nno ip http server\nno ip http secure-server\n!\n"
     if router_name == "PE1":
@@ -261,7 +274,7 @@ def generate_configurations(network_intent):
                                 "asn": network["routers"][ce_name]["asn"]
                             })
             
-            config = generate_pe_config(router_name, router_data, network["asn"], peers, ces)
+            config = generate_pe_config(router_name, router_data, network["asn"], peers, ces, network)
             configurations[router_name] = config
     
     for router_name, router_data in network["routers"].items():
@@ -305,7 +318,10 @@ dicoCorrespondance = {
     "CE1-1": {"idRouter": "4a599c6b-87a7-461b-a6db-0155bfd9d864", "id": "i5"},   
     "CE2-1": {"idRouter": "66bae736-2efa-4f45-8a11-325263fa63ee", "id": "i6"},   
     "CE1-2": {"idRouter": "c3193deb-0419-4cb1-80a9-ea32e140dc36", "id": "i7"},   
-    "CE2-2": {"idRouter": "c028ed50-0163-4b0f-982a-4d1e334bcfa7", "id": "i8"},     
+    "CE2-2": {"idRouter": "c028ed50-0163-4b0f-982a-4d1e334bcfa7", "id": "i8"},
+    "PE3": {"idRouter": "4c2a7c29-5cba-4830-8b35-a5eec68b1706", "id":"i9"},
+    "CE1-3": {"idRouter": "b51d121f-8651-45e1-a2b3-d5377bd6ce56", "id":"i10"},
+    "CE2-3": {"idRouter": "ed983761-8696-4ffa-b14f-6370b2223d80", "id":"i11"}
 }
 
 
@@ -313,14 +329,11 @@ dicoCorrespondance = {
 def save_configurations(configurations, path):
     """Enregistre les configurations dans des fichiers"""
     for router_name, config in configurations.items():
-        print(dicoCorrespondance[router_name]["idRouter"])
         full_dir = os.path.join(path, dicoCorrespondance[router_name]["idRouter"],"configs")
         os.makedirs(full_dir, exist_ok=True)
         output_path = os.path.join(full_dir, f"{dicoCorrespondance[router_name]["id"]}_startup-config.cfg")
-        print(output_path)
         with open(output_path, "w", encoding='utf-8') as f:
             f.write(config)
-        print(f"Configuration pour {router_name} générée avec succès.")
 
 def main(path):
     intent = load_intent_file("intent-file.json")
