@@ -1,0 +1,201 @@
+{
+    "network": {
+        "asn": 2025,
+        "subnets": {
+            "PE1-P2": "192.168.69.0 255.255.255.252",
+            "P2-P3": "192.168.69.4 255.255.255.252",
+            "P3-PE2": "192.168.69.8 255.255.255.252",
+            "PE1-CE1-1": "192.168.70.0 255.255.255.252",
+            "PE1-CE2-1": "192.168.71.0 255.255.255.252",
+            "PE2-CE1-2": "192.168.72.0 255.255.255.252",
+            "PE2-CE2-2": "192.168.73.0 255.255.255.252",
+            "P3-PE3": "192.168.69.12 255.255.255.252",
+            "PE3-CE1-3":"192.168.74.0 255.255.255.252",
+            "PE3-CE2-3":"192.168.75.0 255.255.255.252"
+        },
+        "loopbacks": {
+            "base": "10.0.0.0 255.255.255.255",
+            "increment": 1
+        },
+        "routers": {
+            "PE1": {
+                "type": "PE",
+                "interfaces": {
+                    "GigabitEthernet1/0": {
+                        "neighbor": "P2",
+                        "subnet": "PE1-P2",
+                        "host_position": 1,
+                        "mpls": true
+                    },
+                    "GigabitEthernet4/0": {
+                        "subnet": "PE1-CE1-1",
+                        "host_position": 1,
+                        "vrf": "customer_1",
+                        "ce_asn": 101
+                    },
+                    "GigabitEthernet5/0": {
+                        "subnet": "PE1-CE2-1",
+                        "host_position": 1,
+                        "vrf": "customer_2",
+                        "ce_asn": 102
+                    }
+                },
+                "vrfs": ["customer_1", "customer_2"]
+            },
+            "P2": {
+                "type": "P",
+                "interfaces": {
+                    "GigabitEthernet1/0": {
+                        "neighbor": "PE1",
+                        "subnet": "PE1-P2",
+                        "host_position": 2,
+                        "mpls": true
+                    },
+                    "GigabitEthernet2/0": {
+                        "neighbor": "P3",
+                        "subnet": "P2-P3",
+                        "host_position": 1,
+                        "mpls": true
+                    }
+                }
+            },
+            "P3": {
+                "type": "P",
+                "interfaces": {
+                    "GigabitEthernet2/0": {
+                        "neighbor": "P2",
+                        "subnet": "P2-P3",
+                        "host_position": 2,
+                        "mpls": true
+                    },
+                    "GigabitEthernet3/0": {
+                        "neighbor": "PE2",
+                        "subnet": "P3-PE2",
+                        "host_position": 1,
+                        "mpls": true
+                    },
+                    "GigabitEthernet4/0": {
+                        "neighbor": "PE3",
+                        "subnet": "P3-PE3",
+                        "host_position": 1,
+                        "mpls": true
+                    }
+                }
+            },
+            "PE2": {
+                "type": "PE",
+                "interfaces": {
+                    "GigabitEthernet3/0": {
+                        "neighbor": "P3",
+                        "subnet": "P3-PE2",
+                        "host_position": 2,
+                        "mpls": true
+                    },
+                    "GigabitEthernet4/0": {
+                        "subnet": "PE2-CE1-2",
+                        "host_position": 1,
+                        "vrf": "customer_1",
+                        "ce_asn": 103
+                    },
+                    "GigabitEthernet5/0": {
+                        "subnet": "PE2-CE2-2",
+                        "host_position": 1,
+                        "vrf": "customer_2",
+                        "ce_asn": 104
+                    }
+                },
+                "vrfs": ["customer_1", "customer_2"]
+            },
+            "CE1-1": {
+                "type": "CE",
+                "asn": 101,
+                "interfaces": {
+                    "GigabitEthernet4/0": {
+                        "subnet": "PE1-CE1-1",
+                        "host_position": 2,
+                        "connected_to_pe": true
+                    }
+                }
+            },
+            "CE2-1": {
+                "type": "CE",
+                "asn": 102,
+                "interfaces": {
+                    "GigabitEthernet5/0": {
+                        "subnet": "PE1-CE2-1",
+                        "host_position": 2,
+                        "connected_to_pe": true
+                    }
+                }
+            },
+            "CE1-2": {
+                "type": "CE",
+                "asn": 103,
+                "interfaces": {
+                    "GigabitEthernet4/0": {
+                        "subnet": "PE2-CE1-2",
+                        "host_position": 2,
+                        "connected_to_pe": true
+                    }
+                }
+            },
+            "CE2-2": {
+                "type": "CE",
+                "asn": 104,
+                "interfaces": {
+                    "GigabitEthernet5/0": {
+                        "subnet": "PE2-CE2-2",
+                        "host_position": 2,
+                        "connected_to_pe": true
+                    }
+                }
+            },
+            "PE3": {
+                "type": "PE",
+                "interfaces": {
+                    "GigabitEthernet4/0": {
+                        "neighbor": "P3",
+                        "subnet": "P3-PE3",
+                        "host_position": 2,
+                        "mpls": true
+                    },
+                    "GigabitEthernet5/0": {
+                        "subnet": "PE3-CE1-3",
+                        "host_position": 1,
+                        "vrf": "customer_1",
+                        "ce_asn": 105
+                    },
+                    "GigabitEthernet6/0": {
+                        "subnet": "PE3-CE2-3",
+                        "host_position": 1,
+                        "vrf": "customer_2",
+                        "ce_asn": 106
+                    }
+                },
+                "vrfs": ["customer_1", "customer_2"]
+            },
+            "CE1-3": {
+                "type": "CE",
+                "asn": 105,
+                "interfaces": {
+                    "GigabitEthernet5/0": {
+                        "subnet": "PE3-CE1-3",
+                        "host_position": 2,
+                        "connected_to_pe": true
+                    }
+                }
+            },
+            "CE2-3": {
+                "type": "CE",
+                "asn": 106,
+                "interfaces": {
+                    "GigabitEthernet6/0": {
+                        "subnet": "PE3-CE2-3",
+                        "host_position": 2,
+                        "connected_to_pe": true
+                    }
+                }
+            }
+        }
+    }
+}
